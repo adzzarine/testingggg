@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Project Dashboard</title>
+<!-- Versi deploy: data tersimpan di localStorage browser masing-masing user -->
+<style>
+  :root{
+    --bg:#FAFAF8;
+    --panel:#FFFFFF;
+    --ink:#1C1C1A;
+    --muted:#8A8A82;
+    --border:#E6E4DD;
+    --accent:#41566B;
+    --accent-soft:#EAEEF1;
+    --good:#5C7A5B;
+    --good-soft:#EAF0E9;
+    --warn:#B8863B;
+    --warn-soft:#F6EEE0;
+    --bad:#A2493F;
+    --bad-soft:#F5E9E7;
+    --hold:#7A7566;
+    --hold-soft:#EFEDE6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);}
+  .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}
+
+  .sidebar{border-right:1px solid var(--border);padding:24px 16px;background:var(--panel);display:flex;flex-direction:column;}
+  .brand{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:20px;font-weight:700;}
+  .nav-btn{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border-radius:8px;border:1px solid transparent;background:none;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;margin-bottom:2px;}
+  .nav-btn:hover{background:var(--bg);}
+  .nav-btn.active{background:var(--accent-soft);color:var(--accent);}
+  .divider{height:1px;background:var(--border);margin:14px 0;}
+  .btn-new{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;margin-bottom:14px;}
+  .btn-new:hover{background:#dde5ea;}
+  .project-list{list-style:none;padding:0;margin:0;flex:1;overflow-y:auto;}
+  .project-item{padding:11px 10px;border-radius:8px;cursor:pointer;margin-bottom:3px;border:1px solid transparent;}
+  .project-item:hover{background:var(--bg);}
+  .project-item.active{background:var(--accent-soft);border-color:var(--accent);}
+  .project-item .pname{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .project-item .pmeta{font-size:11px;color:var(--muted);margin-top:3px;padding-left:13px;}
+  .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .dot-good{background:var(--good);} .dot-warn{background:var(--warn);}
+  .dot-bad{background:var(--bad);} .dot-plan{background:var(--accent);}
+  .dot-hold{background:var(--hold);}
+  .prio-flag{font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;}
+  .prio-High{background:var(--bad-soft);color:var(--bad);}
+  .prio-Medium{background:var(--warn-soft);color:var(--warn);}
+  .prio-Low{background:var(--hold-soft);color:var(--hold);}
+
+  .main{padding:32px 40px;overflow-y:auto;}
+  .empty{color:var(--muted);font-size:14px;margin-top:80px;text-align:center;}
+
+  .ov-header{margin-bottom:22px;}
+  .ov-header h1{margin:0 0 4px 0;font-size:22px;}
+  .ov-header .sub{color:var(--muted);font-size:13px;}
+  .stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:26px;}
+  .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .stat-card .num{font-size:26px;font-weight:800;}
+  .stat-card .lbl{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.03em;font-weight:600;}
+
+  .filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .filters select{padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;background:var(--panel);color:var(--ink);}
+
+  table.grid-table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  table.grid-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:11px 14px;border-bottom:1px solid var(--border);font-weight:700;}
+  table.grid-table td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle;}
+  table.grid-table tr:last-child td{border-bottom:none;}
+  table.grid-table tr.rowclick{cursor:pointer;}
+  table.grid-table tr.rowclick:hover{background:var(--bg);}
+  .name-cell{font-weight:700;}
+  .mini-track{width:90px;height:6px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--border);display:inline-block;vertical-align:middle;margin-right:8px;}
+  .mini-fill{height:100%;background:var(--accent);}
+
+  .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap;}
+  .badge-good{background:var(--good-soft);color:var(--good);}
+  .badge-warn{background:var(--warn-soft);color:var(--warn);}
+  .badge-bad{background:var(--bad-soft);color:var(--bad);}
+  .badge-plan{background:var(--accent-soft);color:var(--accent);}
+  .badge-hold{background:var(--hold-soft);color:var(--hold);}
+
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:20px;}
+  .header h1{font-size:22px;margin:0 0 6px 0;}
+  .header .sub{color:var(--muted);font-size:13px;}
+  .header-actions{display:flex;gap:8px;align-items:center;}
+  .icon-btn{border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;color:var(--ink);font-weight:600;}
+  .icon-btn:hover{background:var(--bg);}
+  .icon-btn.danger{color:var(--bad);border-color:var(--bad-soft);}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;}
+  .card h3{margin:0 0 14px 0;font-size:14px;font-weight:800;}
+
+  .progress-track{width:100%;height:8px;background:var(--bg);border-radius:6px;overflow:hidden;border:1px solid var(--border);}
+  .progress-fill{height:100%;background:var(--accent);border-radius:6px;transition:width .25s;}
+  .progress-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .progress-row .pct{font-size:13px;font-weight:800;min-width:38px;text-align:right;}
+
+  .stage-list{display:flex;flex-direction:column;gap:8px;}
+  .stage{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);}
+  .stage.done{border-color:var(--good);background:var(--good-soft);}
+  .toggle{width:36px;height:20px;border-radius:20px;background:#D8D6CD;position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+  .toggle.on{background:var(--good);}
+  .toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .toggle.on::after{left:18px;}
+  .stage-name{font-size:13px;font-weight:500;flex:1;}
+  .stage-name.done{text-decoration:line-through;color:var(--muted);}
+  .stage-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;}
+  .stage-del:hover{color:var(--bad);}
+  .add-stage-row{display:flex;gap:8px;margin-top:10px;}
+  .add-stage-row input{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg);}
+  .add-stage-row button{padding:8px 12px;border:1px solid var(--border);border-radius:7px;background:var(--panel);font-size:12px;font-weight:700;cursor:pointer;}
+
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field-grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
+  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+  .field input, .field select, .field textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:var(--bg);color:var(--ink);}
+  .field textarea{resize:vertical;min-height:60px;}
+
+  .prio-toggle{display:flex;gap:6px;}
+  .prio-btn{flex:1;padding:8px 0;border-radius:7px;border:1px solid var(--border);background:var(--bg);font-size:12px;font-weight:700;cursor:pointer;color:var(--muted);}
+  .prio-btn.sel-High.selected{background:var(--bad-soft);color:var(--bad);border-color:var(--bad);}
+  .prio-btn.sel-Medium.selected{background:var(--warn-soft);color:var(--warn);border-color:var(--warn);}
+  .prio-btn.sel-Low.selected{background:var(--hold-soft);color:var(--hold);border-color:var(--hold);}
+
+  .mom-item{border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:var(--bg);}
+  .mom-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .mom-date{font-size:12px;font-weight:800;color:var(--accent);}
+  .mom-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;}
+  .mom-del:hover{color:var(--bad);}
+  .mom-text{font-size:13px;white-space:pre-wrap;line-height:1.5;}
+
+  .add-mom-form{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+  .add-mom-form textarea{min-height:70px;}
+  .primary-btn{align-self:flex-start;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;}
+  .primary-btn:hover{opacity:.9;}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(28,28,26,.4);display:none;align-items:center;justify-content:center;z-index:50;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--panel);border-radius:14px;padding:24px;width:440px;max-width:90vw;border:1px solid var(--border);max-height:88vh;overflow-y:auto;}
+  .modal h3{margin:0 0 16px 0;font-size:16px;}
+  .modal .row{margin-bottom:12px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  .ghost-btn{background:none;border:1px solid var(--border);padding:8px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600;}
+
+  .empty-state{text-align:center;color:var(--muted);font-size:13px;padding:20px 0;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="brand">Project Dashboard</div>
+    <button class="nav-btn active" id="navOverview" onclick="showOverview()">📊 Overview</button>
+    <div class="divider"></div>
+    <button class="btn-new" onclick="openNewProjectModal()">+ Project Baru</button>
+    <ul class="project-list" id="projectList"></ul>
+  </div>
+  <div class="main" id="mainPanel"></div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3>Project Baru</h3>
+    <div class="row field">
+      <label>Nama Project</label>
+      <input id="newProjName" placeholder="cth. AI League">
+    </div>
+    <div class="row field">
+      <label>PIC / Owner</label>
+      <input id="newProjOwner" placeholder="cth. Dinda">
+    </div>
+    <div class="field-grid row">
+      <div class="field">
+        <label>Tanggal Mulai</label>
+        <input id="newProjStart" type="date">
+      </div>
+      <div class="field">
+        <label>Target Selesai</label>
+        <input id="newProjEnd" type="date">
+      </div>
+    </div>
+    <div class="row field">
+      <label>Priority</label>
+      <div class="prio-toggle" id="newProjPrio">
+        <button type="button" class="prio-btn sel-Low" data-val="Low" onclick="selectNewPrio('Low')">Low</button>
+        <button type="button" class="prio-btn sel-Medium selected" data-val="Medium" onclick="selectNewPrio('Medium')">Medium</button>
+        <button type="button" class="prio-btn sel-High" data-val="High" onclick="selectNewPrio('High')">High</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost-btn" onclick="closeModal()">Batal</button>
+      <button class="primary-btn" onclick="createProject()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_STAGES = ["Kickoff","Perencanaan","Eksekusi","Review / QA","Selesai"];
+const STATUS_OPTS = ["Planning","On Progress","On Hold","Completed","Cancelled"];
+let projects = [];
+let activeId = null;
+let view = 'overview';
+let newProjPrio = 'Medium';
+let filters = { status:'', priority:'' };
+
+function uid(){ return 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
+
+async function loadData(){
+  try{
+    const raw = localStorage.getItem('projects');
+    projects = raw ? JSON.parse(raw) : [];
+  }catch(e){ projects = []; }
+  projects.forEach(p=>{
+    if(!p.priority) p.priority = 'Medium';
+    if(!p.status) p.status = 'Planning';
+  });
+  renderSidebar();
+  showOverview();
+}
+
+async function saveData(){
+  try{ localStorage.setItem('projects', JSON.stringify(projects)); }
+  catch(e){ console.error('gagal menyimpan', e); }
+}
+
+function computeProgress(p){
+  if(!p.stages.length) return 0;
+  const done = p.stages.filter(s=>s.done).length;
+  return Math.round((done / p.stages.length) * 100);
+}
+
+function statusInfo(p){
+  const pct = computeProgress(p);
+  if(p.status === 'Cancelled') return {label:'Cancelled', cls:'hold', dot:'hold'};
+  if(p.status === 'On Hold') return {label:'On Hold', cls:'hold', dot:'hold'};
+  if(pct === 100 || p.status === 'Completed') return {label:'Completed', cls:'good', dot:'good'};
+  if(pct === 0) return {label:'Planning', cls:'plan', dot:'plan'};
+  const today = new Date().toISOString().slice(0,10);
+  if(p.end && p.end < today) return {label:'Terlambat', cls:'bad', dot:'bad'};
+  return {label:'On Progress', cls:'warn', dot:'warn'};
+}
+
+function renderSidebar(){
+  const list = document.getElementById('projectList');
+  if(!projects.length){
+    list.innerHTML = '<div class="empty-state">Belum ada project.</div>';
+    return;
+  }
+  const sorted = [...projects].sort((a,b)=>(a.end||'9999').localeCompare(b.end||'9999'));
+  list.innerHTML = sorted.map(p=>{
+    const st = statusInfo(p);
+    const active = (p.id === activeId && view==='detail') ? 'active' : '';
+    return `<li class="project-item ${active}" onclick="selectProject('${p.id}')">
+      <div class="pname"><span class="status-dot dot-${st.dot}"></span>${escapeHtml(p.name)}
+        <span class="prio-flag prio-${p.priority}">${p.priority[0]}</span>
+      </div>
+      <div class="pmeta">${computeProgress(p)}% · ${escapeHtml(p.owner||'-')}</div>
+    </li>`;
+  }).join('');
+}
+
+function selectProject(id){
+  activeId = id;
+  view = 'detail';
+  document.getElementById('navOverview').classList.remove('active');
+  renderSidebar();
+  renderDetail();
+}
+
+function showOverview(){
+  view = 'overview';
+  document.getElementById('navOverview').classList.add('active');
+  renderSidebar();
+  renderOverview();
+}
+
+function renderOverview(){
+  const main = document.getElementById('mainPanel');
+  if(!projects.length){
+    main.innerHTML = `<div class="empty">Belum ada project. Klik "+ Project Baru" di sidebar untuk mulai tracking semua project kamu di sini.</div>`;
+    return;
+  }
+  const total = projects.length;
+  const completed = projects.filter(p=>statusInfo(p).label==='Completed').length;
+  const onprogress = projects.filter(p=>statusInfo(p).label==='On Progress').length;
+  const late = projects.filter(p=>statusInfo(p).label==='Terlambat').length;
+  const high = projects.filter(p=>p.priority==='High').length;
+
+  let list = projects.filter(p=>{
+    if(filters.status && statusInfo(p).label !== filters.status) return false;
+    if(filters.priority && p.priority !== filters.priority) return false;
+    return true;
+  }).sort((a,b)=>(a.end||'9999').localeCompare(b.end||'9999'));
+
+  main.innerHTML = `
+    <div class="ov-header">
+      <h1>Semua Project</h1>
+      <div class="sub">Ringkasan seluruh project yang sedang di-track</div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Project</div></div>
+      <div class="stat-card"><div class="num">${onprogress}</div><div class="lbl">On Progress</div></div>
+      <div class="stat-card"><div class="num">${completed}</div><div class="lbl">Completed</div></div>
+      <div class="stat-card"><div class="num">${late}</div><div class="lbl">Terlambat</div></div>
+      <div class="stat-card"><div class="num">${high}</div><div class="lbl">Priority High</div></div>
+    </div>
+
+    <div class="filters">
+      <select onchange="filters.status=this.value; renderOverview();">
+        <option value="">Semua Status</option>
+        ${['Planning','On Progress','On Hold','Completed','Cancelled','Terlambat'].map(s=>`<option value="${s}" ${filters.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select onchange="filters.priority=this.value; renderOverview();">
+        <option value="">Semua Priority</option>
+        <option value="High" ${filters.priority==='High'?'selected':''}>High</option>
+        <option value="Medium" ${filters.priority==='Medium'?'selected':''}>Medium</option>
+        <option value="Low" ${filters.priority==='Low'?'selected':''}>Low</option>
+      </select>
+    </div>
+
+    <table class="grid-table">
+      <thead>
+        <tr>
+          <th>Project</th><th>PIC</th><th>Priority</th><th>Status</th><th>Progress</th><th>Mulai</th><th>Target Selesai</th><th>MoM</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(p=>{
+          const st = statusInfo(p);
+          const pct = computeProgress(p);
+          return `<tr class="rowclick" onclick="selectProject('${p.id}')">
+            <td class="name-cell">${escapeHtml(p.name)}</td>
+            <td>${escapeHtml(p.owner||'-')}</td>
+            <td><span class="prio-flag prio-${p.priority}">${p.priority}</span></td>
+            <td><span class="badge badge-${st.cls}">${st.label}</span></td>
+            <td><span class="mini-track"><span class="mini-fill" style="width:${pct}%"></span></span>${pct}%</td>
+            <td>${fmtDate(p.start)}</td>
+            <td>${fmtDate(p.end)}</td>
+            <td>${p.moms.length}</td>
+          </tr>`;
+        }).join('') || `<tr><td colspan="8" class="empty-state">Tidak ada project yang cocok dengan filter.</td></tr>`}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderDetail(){
+  const p = projects.find(x=>x.id===activeId);
+  const main = document.getElementById('mainPanel');
+  if(!p){ showOverview(); return; }
+  const st = statusInfo(p);
+  const pct = computeProgress(p);
+
+  main.innerHTML = `
+    <div class="header">
+      <div>
+        <h1>${escapeHtml(p.name)}</h1>
+        <div class="sub">${escapeHtml(p.owner||'-')} &nbsp;·&nbsp; ${fmtDate(p.start)} → ${fmtDate(p.end)}</div>
+      </div>
+      <div class="header-actions">
+        <span class="badge badge-${st.cls}">${st.label}</span>
+        <span class="prio-flag prio-${p.priority}">${p.priority} Priority</span>
+        <button class="icon-btn danger" onclick="deleteProject('${p.id}')">Hapus</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Progress Keseluruhan</h3>
+      <div class="progress-row">
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div class="pct">${pct}%</div>
+      </div>
+      <div class="stage-list">
+        ${p.stages.map((s,i)=>`
+          <div class="stage ${s.done?'done':''}">
+            <div class="toggle ${s.done?'on':''}" onclick="toggleStage('${p.id}',${i})"></div>
+            <div class="stage-name ${s.done?'done':''}">${escapeHtml(s.name)}</div>
+            <button class="stage-del" onclick="deleteStage('${p.id}',${i})" title="Hapus tahap">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="add-stage-row">
+        <input id="newStageName_${p.id}" placeholder="Tambah tahapan baru...">
+        <button onclick="addStage('${p.id}')">+ Tambah</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Detail Project</h3>
+      <div class="field-grid cols-3">
+        <div class="field">
+          <label>Tanggal Mulai</label>
+          <input type="date" value="${p.start||''}" onchange="updateField('${p.id}','start',this.value)">
+        </div>
+        <div class="field">
+          <label>Target Selesai</label>
+          <input type="date" value="${p.end||''}" onchange="updateField('${p.id}','end',this.value)">
+        </div>
+        <div class="field">
+          <label>PIC / Owner</label>
+          <input value="${escapeHtml(p.owner||'')}" onchange="updateField('${p.id}','owner',this.value)">
+        </div>
+      </div>
+      <div class="field-grid" style="margin-top:14px;">
+        <div class="field">
+          <label>Status</label>
+          <select onchange="updateField('${p.id}','status',this.value)">
+            ${STATUS_OPTS.map(s=>`<option value="${s}" ${p.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Priority</label>
+          <div class="prio-toggle">
+            ${['Low','Medium','High'].map(v=>`<button type="button" class="prio-btn sel-${v} ${p.priority===v?'selected':''}" onclick="updateField('${p.id}','priority','${v}')">${v}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Catatan / Deskripsi</label>
+        <textarea onchange="updateField('${p.id}','desc',this.value)" placeholder="Ringkasan singkat project...">${escapeHtml(p.desc||'')}</textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Minutes of Meeting (MoM)</h3>
+      ${p.moms.length ? p.moms.slice().reverse().map(m=>`
+        <div class="mom-item">
+          <div class="mom-head">
+            <div class="mom-date">${fmtDate(m.date)}</div>
+            <button class="mom-del" onclick="deleteMom('${p.id}','${m.id}')">Hapus</button>
+          </div>
+          <div class="mom-text">${escapeHtml(m.text)}</div>
+        </div>
+      `).join('') : '<div class="empty-state">Belum ada catatan meeting.</div>'}
+
+      <div class="add-mom-form">
+        <div class="field-grid">
+          <div class="field">
+            <label>Tanggal Meeting</label>
+            <input type="date" id="momDate_${p.id}" value="${new Date().toISOString().slice(0,10)}">
+          </div>
+        </div>
+        <textarea id="momText_${p.id}" placeholder="Poin-poin diskusi, keputusan, action item..."></textarea>
+        <button class="primary-btn" onclick="addMom('${p.id}')">+ Tambah MoM</button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleStage(pid, idx){
+  const p = projects.find(x=>x.id===pid);
+  p.stages[idx].done = !p.stages[idx].done;
+  saveData(); renderSidebar(); renderDetail();
+}
+function deleteStage(pid, idx){
+  const p = projects.find(x=>x.id===pid);
+  p.stages.splice(idx,1);
+  saveData(); renderSidebar(); renderDetail();
+}
+function addStage(pid){
+  const p = projects.find(x=>x.id===pid);
+  const input = document.getElementById('newStageName_'+pid);
+  const val = input.value.trim();
+  if(!val) return;
+  p.stages.push({name:val, done:false});
+  saveData(); renderSidebar(); renderDetail();
+}
+function updateField(pid, key, val){
+  const p = projects.find(x=>x.id===pid);
+  p[key] = val;
+  saveData(); renderSidebar(); renderDetail();
+}
+function addMom(pid){
+  const p = projects.find(x=>x.id===pid);
+  const date = document.getElementById('momDate_'+pid).value;
+  const text = document.getElementById('momText_'+pid).value.trim();
+  if(!text) return;
+  p.moms.push({id: uid(), date, text});
+  saveData(); renderDetail();
+}
+function deleteMom(pid, mid){
+  const p = projects.find(x=>x.id===pid);
+  p.moms = p.moms.filter(m=>m.id!==mid);
+  saveData(); renderDetail();
+}
+function deleteProject(pid){
+  if(!confirm('Hapus project ini beserta seluruh data MoM-nya?')) return;
+  projects = projects.filter(p=>p.id!==pid);
+  if(activeId===pid){ activeId=null; showOverview(); }
+  else { renderSidebar(); }
+  saveData();
+}
+
+function selectNewPrio(v){
+  newProjPrio = v;
+  document.querySelectorAll('#newProjPrio .prio-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.val===v);
+  });
+}
+function openNewProjectModal(){
+  document.getElementById('newProjName').value = '';
+  document.getElementById('newProjOwner').value = '';
+  document.getElementById('newProjStart').value = new Date().toISOString().slice(0,10);
+  document.getElementById('newProjEnd').value = '';
+  newProjPrio = 'Medium';
+  selectNewPrio('Medium');
+  document.getElementById('modalBg').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalBg').classList.remove('open'); }
+
+function createProject(){
+  const name = document.getElementById('newProjName').value.trim();
+  if(!name){ alert('Nama project wajib diisi'); return; }
+  const p = {
+    id: uid(),
+    name,
+    owner: document.getElementById('newProjOwner').value.trim(),
+    start: document.getElementById('newProjStart').value,
+    end: document.getElementById('newProjEnd').value,
+    priority: newProjPrio,
+    status: 'Planning',
+    desc: '',
+    stages: DEFAULT_STAGES.map(s=>({name:s, done:false})),
+    moms: []
+  };
+  projects.push(p);
+  activeId = p.id;
+  view = 'detail';
+  saveData();
+  closeModal();
+  document.getElementById('navOverview').classList.remove('active');
+  renderSidebar();
+  renderDetail();
+}
+
+function fmtDate(d){
+  if(!d) return '-';
+  const dt = new Date(d+'T00:00:00');
+  if(isNaN(dt)) return d;
+  return dt.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
+}
+function escapeHtml(str){
+  return (str||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+loadData();
+</script>
+</body>
+</html>
