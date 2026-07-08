@@ -2,8 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Amanda's Project Dashboard</title>
-<!-- Versi deploy: data tersimpan di localStorage browser masing-masing user -->
+<title>Project Dashboard</title>
 <style>
   :root{
     --bg:#FAFAF8;
@@ -56,6 +55,25 @@
   .ov-header h1{margin:0 0 4px 0;font-size:22px;}
   .ov-header .sub{color:var(--muted);font-size:13px;}
   .stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:26px;}
+  .chart-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;margin-bottom:26px;align-items:stretch;}
+  .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;}
+  .chart-card h3{margin:0 0 4px 0;font-size:13px;font-weight:800;}
+  .chart-card .chart-sub{font-size:11px;color:var(--muted);margin-bottom:14px;}
+  .donut-wrap{display:flex;align-items:center;gap:18px;}
+  .donut-legend{display:flex;flex-direction:column;gap:8px;flex:1;}
+  .legend-row{display:flex;align-items:center;gap:8px;font-size:12px;}
+  .legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .legend-name{flex:1;color:var(--ink);font-weight:600;}
+  .legend-val{color:var(--muted);font-weight:700;}
+  .bar-chart-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .bar-chart-row:last-child{margin-bottom:0;}
+  .bar-label{width:64px;font-size:12px;font-weight:700;color:var(--muted);flex-shrink:0;}
+  .bar-track{flex:1;height:16px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--border);}
+  .bar-fill{height:100%;border-radius:5px;}
+  .bar-val{width:22px;text-align:right;font-size:12px;font-weight:800;flex-shrink:0;}
+  .ring-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;}
+  .ring-pct{font-size:24px;font-weight:800;}
+  .ring-lbl{font-size:11px;color:var(--muted);margin-top:2px;}
   .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
   .stat-card .num{font-size:26px;font-weight:800;}
   .stat-card .lbl{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.03em;font-weight:600;}
@@ -144,13 +162,27 @@
   .ghost-btn{background:none;border:1px solid var(--border);padding:8px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600;}
 
   .empty-state{text-align:center;color:var(--muted);font-size:13px;padding:20px 0;}
+
+  .tag-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--accent-soft);color:var(--accent);border:1px solid transparent;}
+  .tag-chip.clickable{cursor:pointer;}
+  .tag-chip.clickable:hover{background:#dde5ea;}
+  .tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .no-tag{font-size:11px;color:var(--muted);font-style:italic;}
+
+  .checkbox-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+  .chk-item{display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:20px;background:var(--bg);font-size:12px;cursor:pointer;user-select:none;}
+  .chk-item input{margin:0;cursor:pointer;}
+  .chk-item.checked{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700;}
+
+  .mom-page-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
 </style>
 </head>
 <body>
 <div class="app">
   <div class="sidebar">
-    <div class="brand">Amanda's Project Dashboard</div>
+    <div class="brand">Project Dashboard</div>
     <button class="nav-btn active" id="navOverview" onclick="showOverview()">📊 Overview</button>
+    <button class="nav-btn" id="navMom" onclick="showMomPage()">📝 MoM</button>
     <div class="divider"></div>
     <button class="btn-new" onclick="openNewProjectModal()">+ Project Baru</button>
     <ul class="project-list" id="projectList"></ul>
@@ -198,29 +230,48 @@
 const DEFAULT_STAGES = ["Kickoff","Perencanaan","Eksekusi","Review / QA","Selesai"];
 const STATUS_OPTS = ["Planning","On Progress","On Hold","Completed","Cancelled"];
 let projects = [];
+let moms = [];
 let activeId = null;
 let view = 'overview';
 let newProjPrio = 'Medium';
 let filters = { status:'', priority:'' };
+let momFilterProject = '';
+let momFormChecked = new Set();
 
-function uid(){ return 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
+function uid(prefix){ return (prefix||'p') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
 
 async function loadData(){
   try{
-    const raw = localStorage.getItem('projects');
-    projects = raw ? JSON.parse(raw) : [];
+    const res = await window.storage.get('projects');
+    projects = res ? JSON.parse(res.value) : [];
   }catch(e){ projects = []; }
+  try{
+    const res2 = await window.storage.get('moms');
+    moms = res2 ? JSON.parse(res2.value) : [];
+  }catch(e){ moms = []; }
+
   projects.forEach(p=>{
     if(!p.priority) p.priority = 'Medium';
     if(!p.status) p.status = 'Planning';
+    // migrasi: pindahkan MoM lama yang nempel di project ke daftar global
+    if(Array.isArray(p.moms) && p.moms.length){
+      p.moms.forEach(m=>{
+        moms.push({ id: m.id || uid('m'), date: m.date, text: m.text, projectIds: [p.id] });
+      });
+      delete p.moms;
+    }
   });
+
   renderSidebar();
   showOverview();
+  saveData();
 }
 
 async function saveData(){
-  try{ localStorage.setItem('projects', JSON.stringify(projects)); }
-  catch(e){ console.error('gagal menyimpan', e); }
+  try{ await window.storage.set('projects', JSON.stringify(projects)); }
+  catch(e){ console.error('gagal menyimpan projects', e); }
+  try{ await window.storage.set('moms', JSON.stringify(moms)); }
+  catch(e){ console.error('gagal menyimpan moms', e); }
 }
 
 function computeProgress(p){
@@ -263,6 +314,7 @@ function selectProject(id){
   activeId = id;
   view = 'detail';
   document.getElementById('navOverview').classList.remove('active');
+  document.getElementById('navMom').classList.remove('active');
   renderSidebar();
   renderDetail();
 }
@@ -270,8 +322,50 @@ function selectProject(id){
 function showOverview(){
   view = 'overview';
   document.getElementById('navOverview').classList.add('active');
+  document.getElementById('navMom').classList.remove('active');
   renderSidebar();
   renderOverview();
+}
+
+function showMomPage(){
+  view = 'mom';
+  momFormChecked = new Set();
+  document.getElementById('navOverview').classList.remove('active');
+  document.getElementById('navMom').classList.add('active');
+  renderSidebar();
+  renderMomPage();
+}
+
+function buildDonut(segments, total){
+  if(!total) return `<svg width="120" height="120"></svg>`;
+  const r = 46, cx = 60, cy = 60, circumference = 2 * Math.PI * r;
+  let offset = 0;
+  const arcs = segments.map(s=>{
+    const frac = s.val / total;
+    const dash = frac * circumference;
+    const gap = circumference - dash;
+    const el = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="16"
+      stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset += dash;
+    return el;
+  }).join('');
+  return `<svg width="120" height="120" viewBox="0 0 120 120">
+    ${arcs}
+    <text x="60" y="65" text-anchor="middle" font-size="20" font-weight="800" fill="var(--ink)">${total}</text>
+  </svg>`;
+}
+
+function buildRing(pct){
+  const r = 50, cx = 60, cy = 60, circumference = 2 * Math.PI * r;
+  const dash = (pct/100) * circumference;
+  return `<svg width="120" height="120" viewBox="0 0 120 120">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--bg)" stroke-width="12"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--accent)" stroke-width="12"
+      stroke-dasharray="${dash} ${circumference-dash}" stroke-linecap="round"
+      transform="rotate(-90 ${cx} ${cy})"/>
+  </svg>
+  <div class="ring-pct">${pct}%</div>
+  <div class="ring-lbl">progress rata-rata</div>`;
 }
 
 function renderOverview(){
@@ -285,6 +379,20 @@ function renderOverview(){
   const onprogress = projects.filter(p=>statusInfo(p).label==='On Progress').length;
   const late = projects.filter(p=>statusInfo(p).label==='Terlambat').length;
   const high = projects.filter(p=>p.priority==='High').length;
+
+  // data untuk visualisasi
+  const statusColors = { 'Planning':'#41566B', 'On Progress':'#B8863B', 'Terlambat':'#A2493F', 'Completed':'#5C7A5B', 'On Hold':'#7A7566', 'Cancelled':'#7A7566' };
+  const statusCounts = {};
+  projects.forEach(p=>{ const l = statusInfo(p).label; statusCounts[l] = (statusCounts[l]||0)+1; });
+  const donutSegments = Object.keys(statusCounts).map(k=>({label:k, val:statusCounts[k], color:statusColors[k]||'#8A8A82'}));
+  const donutTotal = donutSegments.reduce((s,d)=>s+d.val,0);
+
+  const prioColors = { High:'#A2493F', Medium:'#B8863B', Low:'#7A7566' };
+  const prioCounts = { High:0, Medium:0, Low:0 };
+  projects.forEach(p=>{ prioCounts[p.priority] = (prioCounts[p.priority]||0)+1; });
+  const maxPrio = Math.max(1, ...Object.values(prioCounts));
+
+  const avgProgress = Math.round(projects.reduce((s,p)=>s+computeProgress(p),0) / total);
 
   let list = projects.filter(p=>{
     if(filters.status && statusInfo(p).label !== filters.status) return false;
@@ -304,6 +412,47 @@ function renderOverview(){
       <div class="stat-card"><div class="num">${completed}</div><div class="lbl">Completed</div></div>
       <div class="stat-card"><div class="num">${late}</div><div class="lbl">Terlambat</div></div>
       <div class="stat-card"><div class="num">${high}</div><div class="lbl">Priority High</div></div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h3>Distribusi Status</h3>
+        <div class="chart-sub">Jumlah project per status</div>
+        <div class="donut-wrap">
+          ${buildDonut(donutSegments, donutTotal)}
+          <div class="donut-legend">
+            ${donutSegments.map(s=>`
+              <div class="legend-row">
+                <span class="legend-dot" style="background:${s.color}"></span>
+                <span class="legend-name">${s.label}</span>
+                <span class="legend-val">${s.val}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Distribusi Priority</h3>
+        <div class="chart-sub">Jumlah project per level priority</div>
+        <div style="margin-top:18px;">
+          ${['High','Medium','Low'].map(p=>`
+            <div class="bar-chart-row">
+              <div class="bar-label">${p}</div>
+              <div class="bar-track"><div class="bar-fill" style="width:${(prioCounts[p]/maxPrio*100)}%;background:${prioColors[p]}"></div></div>
+              <div class="bar-val">${prioCounts[p]}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Rata-rata Progress</h3>
+        <div class="chart-sub">Semua project digabung</div>
+        <div class="ring-wrap">
+          ${buildRing(avgProgress)}
+        </div>
+      </div>
     </div>
 
     <div class="filters">
@@ -337,7 +486,7 @@ function renderOverview(){
             <td><span class="mini-track"><span class="mini-fill" style="width:${pct}%"></span></span>${pct}%</td>
             <td>${fmtDate(p.start)}</td>
             <td>${fmtDate(p.end)}</td>
-            <td>${p.moms.length}</td>
+            <td>${moms.filter(m=>m.projectIds.includes(p.id)).length}</td>
           </tr>`;
         }).join('') || `<tr><td colspan="8" class="empty-state">Tidak ada project yang cocok dengan filter.</td></tr>`}
       </tbody>
@@ -351,6 +500,7 @@ function renderDetail(){
   if(!p){ showOverview(); return; }
   const st = statusInfo(p);
   const pct = computeProgress(p);
+  const relatedMoms = moms.filter(m=>m.projectIds.includes(p.id));
 
   main.innerHTML = `
     <div class="header">
@@ -423,27 +573,24 @@ function renderDetail(){
     </div>
 
     <div class="card">
-      <h3>Minutes of Meeting (MoM)</h3>
-      ${p.moms.length ? p.moms.slice().reverse().map(m=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="margin:0;">Minutes of Meeting (MoM) Terkait</h3>
+        <button class="icon-btn" onclick="goToMomForProject('${p.id}')">+ Kelola MoM</button>
+      </div>
+      ${relatedMoms.length ? relatedMoms.slice().reverse().map(m=>`
         <div class="mom-item">
           <div class="mom-head">
             <div class="mom-date">${fmtDate(m.date)}</div>
-            <button class="mom-del" onclick="deleteMom('${p.id}','${m.id}')">Hapus</button>
           </div>
           <div class="mom-text">${escapeHtml(m.text)}</div>
-        </div>
-      `).join('') : '<div class="empty-state">Belum ada catatan meeting.</div>'}
-
-      <div class="add-mom-form">
-        <div class="field-grid">
-          <div class="field">
-            <label>Tanggal Meeting</label>
-            <input type="date" id="momDate_${p.id}" value="${new Date().toISOString().slice(0,10)}">
+          <div class="tag-row">
+            ${m.projectIds.map(pid=>{
+              const rp = projects.find(x=>x.id===pid);
+              return rp ? `<span class="tag-chip">${escapeHtml(rp.name)}</span>` : '';
+            }).join('')}
           </div>
         </div>
-        <textarea id="momText_${p.id}" placeholder="Poin-poin diskusi, keputusan, action item..."></textarea>
-        <button class="primary-btn" onclick="addMom('${p.id}')">+ Tambah MoM</button>
-      </div>
+      `).join('') : '<div class="empty-state">Belum ada MoM yang ditag ke project ini. Klik "Kelola MoM" untuk menambahkan.</div>'}
     </div>
   `;
 }
@@ -471,22 +618,103 @@ function updateField(pid, key, val){
   p[key] = val;
   saveData(); renderSidebar(); renderDetail();
 }
-function addMom(pid){
-  const p = projects.find(x=>x.id===pid);
-  const date = document.getElementById('momDate_'+pid).value;
-  const text = document.getElementById('momText_'+pid).value.trim();
-  if(!text) return;
-  p.moms.push({id: uid(), date, text});
-  saveData(); renderDetail();
+function goToMomForProject(pid){
+  showMomPage();
+  momFormChecked = new Set([pid]);
+  renderMomPage();
+  setTimeout(()=>{ document.getElementById('momFormCard')?.scrollIntoView({behavior:'smooth', block:'center'}); }, 50);
 }
-function deleteMom(pid, mid){
-  const p = projects.find(x=>x.id===pid);
-  p.moms = p.moms.filter(m=>m.id!==mid);
-  saveData(); renderDetail();
+
+function toggleMomChip(pid){
+  if(momFormChecked.has(pid)) momFormChecked.delete(pid);
+  else momFormChecked.add(pid);
+  renderMomPage();
+}
+
+function renderMomPage(){
+  const main = document.getElementById('mainPanel');
+  const filtered = momFilterProject
+    ? moms.filter(m=>m.projectIds.includes(momFilterProject))
+    : moms;
+  const sorted = [...filtered].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+
+  main.innerHTML = `
+    <div class="ov-header">
+      <h1>Minutes of Meeting</h1>
+      <div class="sub">Semua catatan meeting, bisa ditag ke satu atau beberapa project sekaligus</div>
+    </div>
+
+    <div class="card" id="momFormCard">
+      <h3>+ Tambah MoM Baru</h3>
+      <div class="field-grid">
+        <div class="field">
+          <label>Tanggal Meeting</label>
+          <input type="date" id="momDateInput" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+      </div>
+      <div class="field" style="margin-top:12px;">
+        <label>Tag ke Project</label>
+        ${projects.length ? `<div class="checkbox-list">
+          ${projects.map(p=>`
+            <label class="chk-item ${momFormChecked.has(p.id)?'checked':''}" onclick="event.preventDefault(); toggleMomChip('${p.id}')">
+              <input type="checkbox" ${momFormChecked.has(p.id)?'checked':''} readonly>
+              ${escapeHtml(p.name)}
+            </label>
+          `).join('')}
+        </div>` : `<div class="empty-state">Belum ada project untuk ditag. Buat project dulu.</div>`}
+      </div>
+      <div class="field" style="margin-top:12px;">
+        <label>Catatan</label>
+        <textarea id="momTextInput" placeholder="Poin-poin diskusi, keputusan, action item..."></textarea>
+      </div>
+      <button class="primary-btn" style="margin-top:10px;" onclick="addMomGlobal()">+ Simpan MoM</button>
+    </div>
+
+    <div class="filters">
+      <select onchange="momFilterProject=this.value; renderMomPage();">
+        <option value="">Semua Project</option>
+        ${projects.map(p=>`<option value="${p.id}" ${momFilterProject===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
+      </select>
+    </div>
+
+    ${sorted.length ? sorted.map(m=>`
+      <div class="mom-page-item">
+        <div class="mom-head">
+          <div class="mom-date">${fmtDate(m.date)}</div>
+          <button class="mom-del" onclick="deleteMomGlobal('${m.id}')">Hapus</button>
+        </div>
+        <div class="mom-text">${escapeHtml(m.text)}</div>
+        <div class="tag-row">
+          ${m.projectIds.length ? m.projectIds.map(pid=>{
+            const rp = projects.find(x=>x.id===pid);
+            return rp ? `<span class="tag-chip clickable" onclick="selectProject('${rp.id}')">${escapeHtml(rp.name)}</span>` : '';
+          }).join('') : '<span class="no-tag">Tidak ditag ke project manapun</span>'}
+        </div>
+      </div>
+    `).join('') : `<div class="empty-state">Belum ada MoM${momFilterProject?' untuk project ini':''}.</div>`}
+  `;
+}
+
+function addMomGlobal(){
+  const date = document.getElementById('momDateInput').value;
+  const text = document.getElementById('momTextInput').value.trim();
+  if(!text){ alert('Catatan MoM tidak boleh kosong'); return; }
+  moms.push({ id: uid('m'), date, text, projectIds: Array.from(momFormChecked) });
+  momFormChecked = new Set();
+  saveData();
+  renderSidebar();
+  renderMomPage();
+}
+
+function deleteMomGlobal(mid){
+  moms = moms.filter(m=>m.id!==mid);
+  saveData();
+  renderMomPage();
 }
 function deleteProject(pid){
-  if(!confirm('Hapus project ini beserta seluruh data MoM-nya?')) return;
+  if(!confirm('Hapus project ini? MoM yang pernah ditag ke project ini akan tetap ada, hanya tag-nya yang dilepas.')) return;
   projects = projects.filter(p=>p.id!==pid);
+  moms.forEach(m=>{ m.projectIds = m.projectIds.filter(id=>id!==pid); });
   if(activeId===pid){ activeId=null; showOverview(); }
   else { renderSidebar(); }
   saveData();
@@ -521,8 +749,7 @@ function createProject(){
     priority: newProjPrio,
     status: 'Planning',
     desc: '',
-    stages: DEFAULT_STAGES.map(s=>({name:s, done:false})),
-    moms: []
+    stages: DEFAULT_STAGES.map(s=>({name:s, done:false}))
   };
   projects.push(p);
   activeId = p.id;
